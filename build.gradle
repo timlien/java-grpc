@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group = 'com.tingshulien'
+group = 'com.tingshulien.grpc'
 version = '1.0.0'
 
 repositories {
