@@ -1,4 +1,4 @@
 rootProject.name = 'java-grpc'
 include 'unary'
 include 'server-streaming'
-
+include 'client-streaming'
