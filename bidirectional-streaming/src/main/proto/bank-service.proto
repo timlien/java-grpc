@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.tingshulien.grpc.streaming.server.model";
+
+message TransferRequest {
+  int32 from_account = 1;
+  int32 to_account = 2;
+  int32 amount = 3;
+}
+
+message AccountBalance {
+  int32 account_number = 1;
+  int32 balance = 2;
+}
+
+message TransferResponse {
+  TransferStatus status = 1;
+  AccountBalance from_account = 2;
+  AccountBalance to_account = 3;
+}
+
+enum TransferStatus {
+  REJECTED = 0;
+  COMPLETED = 1;
+}
+
+service BankService {
+  rpc Transfer(stream TransferRequest) returns (stream TransferResponse);
+}
