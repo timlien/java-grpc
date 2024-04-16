@@ -15,6 +15,12 @@ message AccountBalance {
   int32 balance = 2;
 }
 
+enum ValidationCode {
+  INVALID_ACCOUNT = 0;
+  INVALID_AMOUNT = 1;
+  INSUFFICIENT_BALANCE = 2;
+}
+
 service BankService {
   rpc Deposit(stream DepositRequest) returns (AccountBalance);
 }

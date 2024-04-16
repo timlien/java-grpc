@@ -20,6 +20,10 @@ public class AccountRepository {
         ));
   }
 
+  public Boolean exists(int accountNumber) {
+    return balanceByAccountNumber.containsKey(accountNumber);
+  }
+
   public Integer getBalance(int accountNumber) {
     return balanceByAccountNumber.get(accountNumber);
   }

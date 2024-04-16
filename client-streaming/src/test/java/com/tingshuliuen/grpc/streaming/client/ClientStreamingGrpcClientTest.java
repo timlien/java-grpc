@@ -4,9 +4,13 @@ import com.tingshulien.grpc.streaming.server.model.AccountBalance;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc.BankServiceStub;
 import com.tingshulien.grpc.streaming.server.model.DepositRequest;
+import com.tingshulien.grpc.streaming.server.model.ValidationCode;
 import com.tingshuliuen.grpc.streaming.client.service.BankService;
+import com.tingshuliuen.grpc.streaming.client.validator.Validation;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -69,7 +73,9 @@ class ClientStreamingGrpcClientTest {
       }
     };
 
-    var requestObserver = asyncBankService.deposit(responseObserver);
+    var requestObserver = asyncBankService
+        .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+        .deposit(responseObserver);
     requestObserver.onNext(DepositRequest.newBuilder().setAccountNumber(1).build());
     requestObserver.onNext(DepositRequest.newBuilder().setAmount(10).build());
     requestObserver.onNext(DepositRequest.newBuilder().setAmount(10).build());
@@ -84,6 +90,46 @@ class ClientStreamingGrpcClientTest {
 
     log.info("Async deposit balance: {}", amount);
     Assertions.assertEquals(120, amount);
+  }
+
+  @Test
+  void asyncDepositAndGetInvalidAccountBalance() throws InterruptedException {
+    var result = new ArrayList<Throwable>();
+
+    var latch = new CountDownLatch(1);
+
+    var responseObserver = new StreamObserver<AccountBalance>() {
+      @Override
+      public void onNext(AccountBalance value) {
+        log.info("Async deposit balance: {}", value.getBalance());
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        result.add(t);
+        latch.countDown();
+      }
+
+      @Override
+      public void onCompleted() {
+        latch.countDown();
+        log.info("Async completed");
+      }
+    };
+
+    var requestObserver = asyncBankService
+        .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+        .deposit(responseObserver);
+    requestObserver.onNext(DepositRequest.newBuilder().setAccountNumber(0).build());  // Invalid account number 0
+
+    latch.await();
+
+    var throwable = result.stream()
+        .findFirst()
+        .orElseThrow();
+
+    Assertions.assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(throwable).getCode());
+    Assertions.assertEquals(ValidationCode.INVALID_ACCOUNT, Validation.from(throwable));
   }
 
   @AfterAll
