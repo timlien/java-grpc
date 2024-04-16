@@ -1,6 +1,7 @@
 package com.tingshulien.grpc.streaming.server.respository;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -18,8 +19,8 @@ public class AccountRepository {
         ));
   }
 
-  public Integer getBalance(int accountNumber) {
-    return balanceByAccountNumber.get(accountNumber);
+  public Optional<Integer> getBalance(int accountNumber) {
+    return Optional.ofNullable(balanceByAccountNumber.get(accountNumber));
   }
 
   public void deductAmount(int accountNumber, int amount) {

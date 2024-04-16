@@ -12,6 +12,12 @@ message Money {
   int32 amount = 1;
 }
 
+enum ValidationCode {
+  INVALID_ACCOUNT = 0;
+  INVALID_AMOUNT = 1;
+  INSUFFICIENT_BALANCE = 2;
+}
+
 service BankService {
   rpc Withdraw(WithdrawRequest) returns (stream Money);
 }

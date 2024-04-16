@@ -4,10 +4,14 @@ import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc.BankServiceBlockingStub;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc.BankServiceStub;
 import com.tingshulien.grpc.streaming.server.model.Money;
+import com.tingshulien.grpc.streaming.server.model.ValidationCode;
 import com.tingshulien.grpc.streaming.server.model.WithdrawRequest;
 import com.tingshulien.grpc.streaming.server.service.BankService;
+import com.tingshulien.grpc.streaming.server.validator.Validation;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -52,7 +56,9 @@ class ServerStreamingGrpcClientTest {
         .setAmount(30)
         .build();
 
-    var iterator = blockingBankService.withdraw(request);
+    var iterator = blockingBankService
+        .withDeadline(Deadline.after(4, TimeUnit.SECONDS))
+        .withdraw(request);
     var amount = 0;
     for (Iterator<Money> it = iterator; it.hasNext(); ) {
       var money = it.next();
@@ -64,7 +70,7 @@ class ServerStreamingGrpcClientTest {
   }
 
   @Test
-  void asyncGetAccountBalance() throws InterruptedException {
+  void asyncWithdrawBalance() throws InterruptedException {
     var request = WithdrawRequest.newBuilder()
         .setAccountNumber(1)
         .setAmount(30)
@@ -92,7 +98,9 @@ class ServerStreamingGrpcClientTest {
       }
     };
 
-    asyncBankService.withdraw(request, observer);
+    asyncBankService
+        .withDeadline(Deadline.after(4, TimeUnit.SECONDS))
+        .withdraw(request, observer);
 
     latch.await();
 
@@ -102,6 +110,69 @@ class ServerStreamingGrpcClientTest {
 
     log.info("Async withdraw: {}", amount);
     Assertions.assertEquals(30, amount);
+  }
+
+  @Test
+  void blockingWithdrawInvalidBalance() {
+    var request = WithdrawRequest.newBuilder()
+        .setAccountNumber(1)
+        .setAmount(9999)
+        .build();
+
+    var exception = Assertions.assertThrows(Exception.class,
+        () -> {
+          var iterator = blockingBankService
+              .withDeadline(Deadline.after(4, TimeUnit.SECONDS))
+              .withdraw(request);
+          for (Iterator<Money> it = iterator; it.hasNext(); ) {
+            it.next();
+          }
+        }
+    );
+    Assertions.assertEquals(ValidationCode.INSUFFICIENT_BALANCE, Validation.from(exception));
+  }
+
+  @Test
+  void asyncWithdrawInvalidBalance() throws InterruptedException {
+    var request = WithdrawRequest.newBuilder()
+        .setAccountNumber(1)
+        .setAmount(9999)
+        .build();
+
+    var result = new ArrayList<Throwable>();
+
+    var latch = new CountDownLatch(1);
+
+    var observer = new StreamObserver<Money>() {
+      @Override
+      public void onNext(Money value) {
+        log.info("Async next: {}", value.getAmount());
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        result.add(t);
+        latch.countDown();
+      }
+
+      @Override
+      public void onCompleted() {
+        latch.countDown();
+      }
+    };
+
+    asyncBankService
+        .withDeadline(Deadline.after(4, TimeUnit.SECONDS))
+        .withdraw(request, observer);
+
+    latch.await();
+
+    var throwable = result.stream()
+        .findFirst()
+        .orElseThrow();
+
+    Assertions.assertEquals(Status.FAILED_PRECONDITION.getCode(), Status.fromThrowable(throwable).getCode());
+    Assertions.assertEquals(ValidationCode.INSUFFICIENT_BALANCE, Validation.from(throwable));
   }
 
   @AfterAll
