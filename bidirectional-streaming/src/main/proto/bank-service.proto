@@ -25,6 +25,12 @@ enum TransferStatus {
   COMPLETED = 1;
 }
 
+enum ValidationCode {
+  INVALID_ACCOUNT = 0;
+  INVALID_AMOUNT = 1;
+  INSUFFICIENT_BALANCE = 2;
+}
+
 service BankService {
   rpc Transfer(stream TransferRequest) returns (stream TransferResponse);
 }

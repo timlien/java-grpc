@@ -1,12 +1,15 @@
 package com.tingshulien.grpc.streaming.bidirectional;
 
 import com.tingshulien.grpc.streaming.bidirectional.service.BankService;
+import com.tingshulien.grpc.streaming.bidirectional.validator.Validation;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc;
 import com.tingshulien.grpc.streaming.server.model.BankServiceGrpc.BankServiceStub;
 import com.tingshulien.grpc.streaming.server.model.TransferRequest;
 import com.tingshulien.grpc.streaming.server.model.TransferResponse;
+import com.tingshulien.grpc.streaming.server.model.ValidationCode;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -89,6 +92,52 @@ class BiDirectionalStreamingGrpcClientTest {
 
     log.info("Async deposit balance: {}", amount);
     Assertions.assertEquals(120, amount);
+  }
+
+  @Test
+  void asyncDepositAndGetInvalidAccountBalance() throws InterruptedException {
+    var result = new ArrayList<Throwable>();
+
+    var latch = new CountDownLatch(1);
+
+    var responseObserver = new StreamObserver<TransferResponse>() {
+      @Override
+      public void onNext(TransferResponse value) {
+        log.info("Async transfer : {}", value.getStatus());
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        result.add(t);
+        latch.countDown();
+      }
+
+      @Override
+      public void onCompleted() {
+        latch.countDown();
+        log.info("Async completed");
+      }
+    };
+
+    var requestObserver = asyncBankService.transfer(responseObserver);
+    var transferRequest = TransferRequest.newBuilder()
+        .setFromAccount(1)
+        .setToAccount(1)  // Invalid account, same account is not allowed
+        .setAmount(10)
+        .build();
+
+    requestObserver.onNext(transferRequest);
+    // requestObserver.onNext(transferRequest);
+    // requestObserver.onCompleted();
+
+    latch.await();
+
+    var throwable = result.stream()
+        .findFirst()
+        .orElseThrow();
+
+    Assertions.assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(throwable).getCode());
+    Assertions.assertEquals(ValidationCode.INVALID_ACCOUNT, Validation.from(throwable));
   }
 
   @AfterAll

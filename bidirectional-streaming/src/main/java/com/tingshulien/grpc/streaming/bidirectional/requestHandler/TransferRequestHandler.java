@@ -1,10 +1,13 @@
 package com.tingshulien.grpc.streaming.bidirectional.requestHandler;
 
 import com.tingshulien.grpc.streaming.bidirectional.repository.AccountRepository;
+import com.tingshulien.grpc.streaming.bidirectional.validator.Validation;
 import com.tingshulien.grpc.streaming.server.model.AccountBalance;
 import com.tingshulien.grpc.streaming.server.model.TransferRequest;
 import com.tingshulien.grpc.streaming.server.model.TransferResponse;
 import com.tingshulien.grpc.streaming.server.model.TransferStatus;
+import com.tingshulien.grpc.streaming.server.model.ValidationCode;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,13 @@ public class TransferRequestHandler implements StreamObserver<TransferRequest> {
   @Override
   public void onNext(TransferRequest transferRequest) {
     TransferStatus transferStatus = transfer(transferRequest);
+    if (transferStatus == TransferStatus.REJECTED) {
+      responseObserver.onError(Status.INVALID_ARGUMENT
+          .withDescription("Transfer is rejected")
+          .asException(Validation.toMetadata(ValidationCode.INVALID_ACCOUNT)));
+      return;
+    }
+
     var transferResponse = TransferResponse.newBuilder()
         .setStatus(transferStatus)
         .setFromAccount(getAccountBalance(transferRequest.getFromAccount()))
