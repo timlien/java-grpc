@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "com.tingshulien.grpc.model";
+option java_package = "com.tingshulien.grpc.unary.model";
 
 
 message BalanceCheckRequest {
@@ -11,6 +11,12 @@ message BalanceCheckRequest {
 message AccountBalance {
   int32 account_number = 1;
   int32 balance = 2;
+}
+
+enum ValidationCode {
+  INVALID_ACCOUNT = 0;
+  INVALID_AMOUNT = 1;
+  INSUFFICIENT_BALANCE = 2;
 }
 
 service BankService {

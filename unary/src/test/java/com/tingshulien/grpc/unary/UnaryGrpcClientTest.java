@@ -1,13 +1,17 @@
 package com.tingshulien.grpc.unary;
 
-import com.tingshulien.grpc.model.AccountBalance;
-import com.tingshulien.grpc.model.BalanceCheckRequest;
-import com.tingshulien.grpc.model.BankServiceGrpc;
-import com.tingshulien.grpc.model.BankServiceGrpc.BankServiceBlockingStub;
-import com.tingshulien.grpc.model.BankServiceGrpc.BankServiceStub;
+import com.tingshulien.grpc.unary.model.AccountBalance;
+import com.tingshulien.grpc.unary.model.BalanceCheckRequest;
+import com.tingshulien.grpc.unary.model.BankServiceGrpc;
+import com.tingshulien.grpc.unary.model.BankServiceGrpc.BankServiceBlockingStub;
+import com.tingshulien.grpc.unary.model.BankServiceGrpc.BankServiceStub;
+import com.tingshulien.grpc.unary.model.ValidationCode;
 import com.tingshulien.grpc.unary.service.BankService;
+import com.tingshulien.grpc.unary.validator.Validation;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -19,7 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 @Slf4j
-public class UnaryBlockingGrpcClientTest {
+public class UnaryGrpcClientTest {
 
   private static final String HOST = "localhost";
 
@@ -50,7 +54,9 @@ public class UnaryBlockingGrpcClientTest {
         .setAccountNumber(1)
         .build();
 
-    var value = blockingBankService.getAccountBalance(request);
+    var value = blockingBankService
+        .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+        .getAccountBalance(request);
     log.info("Blocking balance: {}", value.getBalance());
     Assertions.assertEquals(100, value.getBalance());
   }
@@ -84,7 +90,9 @@ public class UnaryBlockingGrpcClientTest {
       }
     };
 
-    bankService.getAccountBalance(request, observer);
+    bankService
+        .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+        .getAccountBalance(request, observer);
 
     latch.await();
 
@@ -94,6 +102,62 @@ public class UnaryBlockingGrpcClientTest {
         .orElse(-1);
 
     Assertions.assertEquals(100, balance);
+  }
+
+  @Test
+  void blockingGetInvalidAccountBalance() {
+    var request = BalanceCheckRequest.newBuilder()
+        .setAccountNumber(0)
+        .build();
+
+    var exception = Assertions.assertThrows(Exception.class,
+        () -> blockingBankService
+            .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+            .getAccountBalance(request)
+    );
+    Assertions.assertEquals(ValidationCode.INVALID_ACCOUNT, Validation.from(exception));
+  }
+
+  @Test
+  void asyncGetInvalidAccountBalance() throws InterruptedException {
+    var request = BalanceCheckRequest.newBuilder()
+        .setAccountNumber(0)
+        .build();
+
+    var result = new ArrayList<Throwable>();
+
+    var latch = new CountDownLatch(1);
+
+    var observer = new StreamObserver<AccountBalance>() {
+      @Override
+      public void onNext(AccountBalance value) {
+        log.info("Async next: {}", value.getBalance());
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        result.add(t);
+        latch.countDown();
+      }
+
+      @Override
+      public void onCompleted() {
+        latch.countDown();
+      }
+    };
+
+    bankService
+        .withDeadline(Deadline.after(2, TimeUnit.SECONDS))
+        .getAccountBalance(request, observer);
+
+    latch.await();
+
+    var throwable = result.stream()
+        .findFirst()
+        .orElseThrow();
+
+    Assertions.assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(throwable).getCode());
+    Assertions.assertEquals(ValidationCode.INVALID_ACCOUNT, Validation.from(throwable));
   }
 
   @AfterAll

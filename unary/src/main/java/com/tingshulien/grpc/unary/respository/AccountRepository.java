@@ -1,6 +1,7 @@
 package com.tingshulien.grpc.unary.respository;
 
 import java.util.Map;
+import java.util.Optional;
 
 public class AccountRepository {
 
@@ -21,8 +22,8 @@ public class AccountRepository {
     );
   }
 
-  public Integer getBalance(int accountNumber) {
-    return balanceByAccountNumber.get(accountNumber);
+  public Optional<Integer> getBalance(int accountNumber) {
+    return Optional.ofNullable(balanceByAccountNumber.get(accountNumber));
   }
 
 }

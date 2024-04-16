@@ -1,9 +1,12 @@
 package com.tingshulien.grpc.unary.service;
 
-import com.tingshulien.grpc.model.AccountBalance;
-import com.tingshulien.grpc.model.BalanceCheckRequest;
-import com.tingshulien.grpc.model.BankServiceGrpc;
+import com.tingshulien.grpc.unary.model.AccountBalance;
+import com.tingshulien.grpc.unary.model.BalanceCheckRequest;
+import com.tingshulien.grpc.unary.model.BankServiceGrpc;
+import com.tingshulien.grpc.unary.model.ValidationCode;
 import com.tingshulien.grpc.unary.respository.AccountRepository;
+import com.tingshulien.grpc.unary.validator.Validation;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 public class BankService extends BankServiceGrpc.BankServiceImplBase {
@@ -17,7 +20,15 @@ public class BankService extends BankServiceGrpc.BankServiceImplBase {
   @Override
   public void getAccountBalance(BalanceCheckRequest request,
       StreamObserver<AccountBalance> responseObserver) {
-    var balance = accountRepository.getBalance(request.getAccountNumber());
+    var balanceOptional = accountRepository.getBalance(request.getAccountNumber());
+    if (balanceOptional.isEmpty()) {
+      responseObserver.onError(Status.INVALID_ARGUMENT
+          .withDescription("Invalid account number: " + request.getAccountNumber())
+          .asException(Validation.toMetadata(ValidationCode.INVALID_ACCOUNT)));
+      return;
+    }
+
+    var balance = balanceOptional.get();
     var accountBalance = AccountBalance.newBuilder()
         .setAccountNumber(request.getAccountNumber())
         .setBalance(balance)
